@@ -1,0 +1,498 @@
+---
+header-includes: |
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \usepackage[utf8]{inputenc}
+  \fancyfoot[LE,RO]{\thepage}
+  \pagestyle{fancy}
+  \lhead{\textsc{STAC67 Fall 2021 Case Study Report}}
+  \rhead{\textsc{University of Toronto Scarborough}}
+  \fancyfoot[LE,RO]{\thepage}
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+bibliography: references.bib
+csl: apa-6th-edition.csl
+nocite: '@*'
+---
+
+```{r setup, include=FALSE, results='hide'}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+#install.packages("psych")
+#install.packages("leaps")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("olsrr")
+#install.packages("tinytex")
+#install.packages("installr")
+#install.packages("bookdown")
+#install.pandoc()
+
+library(psych)
+library(MASS)
+library(leaps)
+library(ggplot2)
+library(MASS)
+library(dplyr)
+library(olsrr)
+library(car)
+library(installr)
+
+setwd("C:/Users/jmzha/Documents")
+```
+
+```{=latex}
+\title{Analysis of Factors Relating to Bike Rental Counts in Seoul}
+\author{
+  Jingmin Zhang (Echo\\
+  \texttt{1007902165}\\
+  \texttt{Data Analyst}
+  \and
+  Raymond Chan\\
+  \texttt{1004432269}\\
+  \texttt{Data Analyst}
+  \and
+  \newline
+  Hafsa Naim\\
+  \texttt{1005304760}\\
+  \texttt{Data Analyst}
+  \and
+  Wenyuan Wang\\
+  \texttt{1006620257}\\
+  \texttt{Data Analyst}
+}
+\date{15 - Group 15\\
+\texttt{Univeristy of Toronto Scarborough}\\
+\texttt{STAC67 Fall 2021}}
+\maketitle
+\newpage
+```
+
+```{r}
+set.seed(1234567)
+
+dataset <- read.csv("SeoulBikeData.csv")
+```
+## Introduction
+### Background
+Seoul is South Korea’s biggest metropolis with over 10 million people residing in the city (Seoul population 2021). The city is home to many vibrant neighbourhoods, lush sceneries, and futuristic skyscrapers. The city’s transportation system includes highways, subway systems, etc., all of which millions of individuals depend on for essential means of travel. Seoul was introduced to its bike rental system with over 800 rental stations across the city. It aims to tackle traffic congestion, air pollution, and high oil prices (Seoul public bike). 
+
+There has been a growing increase in demand for these rental bikes. This sparks interest in city analysts to understand what this demand is influenced by. For instance, Sathishkumar and his colleagues developed 5 models to predict bike rental, and found that temperature and hour are significant, and there are interactions between weather and season(Sathishkumar & Cho, 2020), while Pan and his colleagues proposed a model based on long term and short-term memory (Pan, Zheng, Zhang, & Yao, 2019). 
+
+### Research Question & Significance
+
+We are interested in what might be related to people's demand for bikes. Understanding this can help predict a stable supply of bikes readily available to be rented. This minimizes the waiting time for consumers and improves convenience through effective bike reallocation. Our research paper explores factors included in our dataset that relate to people’s demand for bike rentals (Bike Rent Count) in Seoul.
+
+### Overview of dataset
+The dataset records potential factors that affect demand in a one year timeframe from December 2017 to January 2018. These factors are listed as 14 variables.
+
+Variable | Definition
+---------|------------
+Date | Date of the observation.
+Rented Bike Count | Response variable; count of bikes rented at every hour.
+Hour | Hour of the day; 0 to 23 hrs.
+Temperature | The temperature in celsius in Seoul.
+Humidity | Percentage of humidity in the air.
+Windspeed | Recorded speed of wind in m/s.
+Visibility | The amount of visibility in 10m distance.
+Dew Point Temperature | The temperature of the dew point in celsius.
+Solar Radiation | Measure of solar radiation in MJ/m2.
+Rainfall | Amount of rainfall in mm.
+Snowfall | Amount in snowfall in cm.
+Seasons | Records whether it is Autumn, Winter, Spring, or Summer.
+Holiday | Records whether it is a holiday or not.
+Functional Day | Records if it is a functioning day or not
+
+
+## Exploratory Data Analysis 
+Our data set is divided into two components - continuous and categorical variables. The continuous variables consist of the response variable, Bike rental count, and all the quantitative variables that describe the weather. The categorical variables are seasons in Seoul (Autumn, Winter, Spring, and Summer) and lastly, holiday and functioning day (variables are either "yes" or "no").  
+
+### 1. Summary Statistics
+Our data set consists of 8760 observations with 14 variables. We see that there are variables (bike count and visibility) with a large spread in data evident from the large difference in min. and max. and median and mean. 
+```{r}
+data<-dataset[,c(2,3,4,5,6,7,8,9,10,11)]
+summary(data)
+```
+
+From the box plot, we see that variables such as bike rent count, wind speed, solar radiation, rainfall, and snowfall have a lot of outliers. Variables snowfall and rainfall do not have a "box" as they have a lot of zero values. 
+
+```{r, fig.height=2}
+#boxplot
+par(mfrow = c(1, 5))
+boxplot(dataset$Rented.Bike.Count, main='Count',col='Sky Blue')
+
+boxplot(dataset$Hour, main='Hour', col='Sky Blue')
+
+boxplot(dataset$Temperature..C., main='Temp', col='Sky Blue')
+
+boxplot(dataset$Humidity..., main='Humid', col='Sky Blue')
+
+boxplot(dataset$Wind.speed..m.s., main='Wind', col='Sky Blue')
+
+boxplot(dataset$Dew.point.temperature..C., main='Dew point', col='Sky Blue')
+
+boxplot(dataset$Solar.Radiation..MJ.m2., main='Solar', col='Sky Blue')
+
+boxplot(dataset$Rainfall.mm., main='Rain', col='Sky Blue')
+
+boxplot(dataset$Snowfall..cm., main='Snow', col='Sky Blue')
+```
+
+The histogram show that the rented bike count (or the response variable) is a right-skewed distribution. This tells us that more often than not, the rented bike count is relatively low compared to the highest number of bikes rented. 
+
+```{r, fig.height=3, fig.width=3}
+#Histrogram
+hist(dataset$Rented.Bike.Count, main = "Histogram of Rented Bikes", xlab = "Rented Bikes", breaks=10, col='Sky Blue')
+```
+
+### 2. Correlation Check
+Next, we check if the variables have any correlation. The scatter plot and correlation matrix show that dew point temperature and temperature have a very high positive correlation. The variables with medium correlation are humidity and visibility with a negative relationship and bike count and temperature with a positive relationship.
+
+```{r}
+#correlation matrix
+pairs.panels(data,pch = 19,cex = 1)
+```
+
+### 3. Interaction Terms
+We check for any interaction between season and weather. The scatter plots are factored by seasons to search for any pattern that indicates interaction. In particular, we see interaction between the seasons and the weather variables, such as temperature, humidity, wind speed, etc., when plotted against rented bike count.  
+
+```{r, fig.height=2, fig.width=3.5}
+ggplot(data=dataset, aes(x=Temperature..C. , y=Rented.Bike.Count, color=factor(Seasons), shape=factor(Seasons))) + geom_point() + geom_smooth(formula = y~x, method='lm', fill=NA)
+
+ggplot(data=dataset, aes(x=Humidity... , y=Rented.Bike.Count, color=factor(Seasons), shape=factor(Seasons))) + geom_point() + geom_smooth(formula = y~x, method='lm', fill=NA)
+
+ggplot(data=dataset, aes(x=Wind.speed..m.s. , y=Rented.Bike.Count, color=factor(Seasons), shape=factor(Seasons))) + geom_point() + geom_smooth(formula = y~x, method='lm', fill=NA)
+
+ggplot(data=dataset, aes(x=Rainfall.mm. , y=Rented.Bike.Count, color=factor(Seasons), shape=factor(Seasons))) + geom_point() + geom_smooth(formula = y~x, method='lm', fill=NA)
+
+ggplot(data=dataset, aes(x=Solar.Radiation..MJ.m2. , y=Rented.Bike.Count, color=factor(Seasons), shape=factor(Seasons))) + geom_point() + geom_smooth(formula = y~x, method='lm', fill=NA)
+```
+
+```{r, fig.height=10, fig.width=12, results='hide'}
+#head(dataset)
+#Convert Hour into a categorical variable with 4 levels:
+#morning: 6-11, afternoon:12-17, night:18-23, midnight:0-5
+
+for (i in 1:dim(dataset)[1]){
+  
+  if (between(dataset$Hour[i],6,11)) {
+    dataset$Hour[i] <- "Morning"
+  } else if (between(dataset$Hour[i],12,17)) {
+    dataset$Hour[i] <- "Afternoon"
+  } else if (between(dataset$Hour[i],18,23)) {
+    dataset$Hour[i] <- "Night"
+  } else {
+    dataset$Hour[i] <- "Midnight"
+  }
+}
+#Indicate quantitive variables
+nquan <- c(2,4,5,6,7,8,9,10,11)
+
+#delete non function days
+logi <- dataset$Functioning.Day=="No"
+
+for (i in 1:dim(dataset)[1]){
+  if (logi[i]) {
+    dataset <- dataset[-i,]
+  }
+}
+
+#put numerical variables in a new dataset
+quan <- dataset[nquan]
+
+#tansformation of response variable
+#quan[,10] <- log(quan$Rented.Bike.Count+1)
+#quan[,11] <- sqrt(quan$Rented.Bike.Count)
+#colnames(quan)[10] <- "ln.Count+1"
+#colnames(quan)[11] <- "sqrt.Count"
+
+
+#scm <- pairs.panels(quan,pch = 19,cex = 1)
+
+
+#centering of temperature
+dataset$Temperature..C. <- dataset$Temperature..C.-mean(dataset$Temperature..C.)
+
+n <- dim(dataset)[1]
+n.building <- sample(1:n, floor(n/2) , replace = FALSE)
+data.building <- dataset[n.building,]
+data.validation <- dataset[-n.building,]
+
+
+
+```
+
+
+```{r, results='hide'}
+#model building--main effect
+model1 <- lm((data.building$Rented.Bike.Count)~data.building$Temperature..C.+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday)
+
+#allmainreg <- regsubsets(data.building$Rented.Bike.Count~data.building$Temperature..C.+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday+data.building$Functioning.Day,nbest = 5, data = data.building)
+
+#selected main effect model
+model1.sel <- stepAIC(lm(data.building$Rented.Bike.Count~1),scope = list(upper=model1, lower=lm(data.building$Rented.Bike.Count~1)), direction = "both")
+
+
+
+
+#quadratic term added for temperature and visibility
+
+model2 <- lm(data.building$Rented.Bike.Count~data.building$Temperature..C.+I((data.building$Temperature..C.)^2)+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday)
+
+#selected second order model
+#model2.sel <- stepAIC(lm(data.building$Rented.Bike.Count~1),scope = list(upper=model2,lower=lm(data.building$Rented.Bike.Count~1)), direction = "both")
+
+
+```
+
+
+
+```{r, results='hide'}
+#choosing model2, add interaction terms according to previous research and this model
+model3 <- lm(data.building$Rented.Bike.Count~data.building$Temperature..C.+I((data.building$Temperature..C.)^2)+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday +data.building$Seasons:data.building$Temperature..C.+data.building$Seasons:data.building$Wind.speed..m.s.+data.building$Seasons:data.building$Rainfall.mm.+data.building$Seasons:data.building$Snowfall..cm.)
+
+model3.sel <- stepAIC(lm(data.building$Rented.Bike.Count~1),scope = list(upper=model3,lower=lm(data.building$Rented.Bike.Count~1)),direction = "both")
+
+#assumption check
+residualplot <- ggplot(data = NULL, aes(x=model3.sel$fitted.values, y=model3.sel$residuals))+geom_point()+geom_hline(yintercept=0, color="red")+ggtitle("Residual Plot")+xlab("fitted value")+ylab("residual")
+
+
+#transformation1: y<-sqrt(y)
+hist.sqrt <- ggplot(dataset, aes(sqrt(Rented.Bike.Count)))+geom_histogram(binwidth = 1)+ggtitle("Distribution of Rent Bike Count after square root transformation")
+
+model4 <- lm(sqrt(data.building$Rented.Bike.Count)~data.building$Temperature..C.+I((data.building$Temperature..C.)^2)+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday +data.building$Seasons:data.building$Temperature..C.+data.building$Seasons:data.building$Wind.speed..m.s.+data.building$Seasons:data.building$Rainfall.mm.+data.building$Seasons:data.building$Snowfall..cm.)
+
+model4.sel <- stepAIC(lm(sqrt(data.building$Rented.Bike.Count)~1),scope = list(upper=model4,lower=lm(sqrt(data.building$Rented.Bike.Count)~1)),direction = "both")
+
+#residualplot <- ggplot(data = NULL, aes(x=model4.sel$fitted.values,digits = 0, y=model4.sel$residuals))+geom_point()+geom_hline(yintercept=0, color="red")+ggtitle("Residual Plot")+xlab("fitted value")+ylab("residual")
+
+#{qqnorm(model4.sel$residuals)
+#qqline(model4.sel$residuals, col="red")}
+
+#histog <- ggplot(data = NULL, aes(model4$residuals))+geom_histogram(binwidth = 0.5)
+
+summary(model3.sel)
+
+```
+
+
+
+
+
+
+```{r, results='hide'}
+#new model with logarithmic transformation
+t <- 200
+hist.log <- ggplot(dataset, aes(log(Rented.Bike.Count+t)))+geom_histogram(binwidth = 0.05)+xlab("log(Rented.Bike.Count+200)")+ggtitle("Distribution of Rent Bike Count after logarithmic transformation")
+
+model5 <- lm(log(data.building$Rented.Bike.Count+t)~data.building$Temperature..C.+I((data.building$Temperature..C.)^2)+data.building$Humidity...+data.building$Wind.speed..m.s.+data.building$Visibility..10m.+data.building$Solar.Radiation..MJ.m2.+data.building$Rainfall.mm.+data.building$Snowfall..cm.+data.building$Hour+data.building$Seasons+data.building$Holiday +data.building$Seasons:data.building$Temperature..C.+data.building$Seasons:data.building$Wind.speed..m.s.+data.building$Seasons:data.building$Rainfall.mm.+data.building$Seasons:data.building$Snowfall..cm.)
+
+model5.sel <- stepAIC(lm(log(data.building$Rented.Bike.Count+t)~1),scope = list(upper=model5,lower=lm(log(data.building$Rented.Bike.Count+t)~1)),direction = "both")
+
+summary(model5.sel)
+
+#residualplot <- ggplot(data = NULL, aes(x=model5.sel$fitted.values,digits = 0, y=model5.sel$residuals))+geom_point()+geom_hline(yintercept=0, color="red")+ggtitle("Residual Plot")+xlab("fitted value")+ylab("residual")
+
+#{qqnorm(model5.sel$residuals)
+#qqline(model5.sel$residuals, col="red")}
+
+#histog <- ggplot(data = NULL, aes(model5$residuals))+geom_histogram(binwidth = 0.05)
+
+aic.5 <- AIC(model5.sel)
+
+```
+
+```{r, results='hide'}
+#weighted model
+s <- abs(model5.sel$residuals)
+weighted <- lm(s~predict(model5.sel))
+#w <- 1/((predict(weighted))^2)
+
+s2 <- abs(weighted$residuals)
+weighted2 <- lm(s2~predict(weighted))
+
+s3 <- abs(weighted2$residuals)
+weighted3 <- lm(s3~predict(weighted2))
+
+w <- 1/((predict(weighted3))^2)
+
+wm <- lm(formula = log(data.building$Rented.Bike.Count + t) ~ data.building$Temperature..C. + 
+    data.building$Hour + data.building$Humidity... + data.building$Rainfall.mm. + 
+    data.building$Seasons + data.building$Holiday + data.building$Wind.speed..m.s. + 
+    data.building$Solar.Radiation..MJ.m2. + data.building$Temperature..C.:data.building$Seasons + 
+    data.building$Seasons:data.building$Wind.speed..m.s., weights = w)
+
+res.wm <- ggplot(data = NULL, aes(x=wm$fitted.values, y=wm$residuals))+geom_point()+geom_hline(yintercept=0, color="red")+ggtitle("Residual Plot")+xlab("fitted value")+ylab("residual")+ggtitle("residual plot for weighted model")
+
+aic.wm <- AIC(wm)
+
+
+```
+
+
+```{r, results='hide'}
+#model validation
+mspr_model4sel <- mean((sqrt(data.validation$Rented.Bike.Count)-predict(model4.sel,data.validation))^2)
+
+mspr_model5sel <- mean((log(data.validation$Rented.Bike.Count+t)-predict(model5.sel,data.validation))^2)
+
+mspr_wm <-mean((log(data.validation$Rented.Bike.Count+t)-predict(wm,data.validation))^2)
+
+```
+
+
+
+```{r}
+#model diagnostics
+
+#1.Outliers
+#dstu <- ols_plot_resid_stud_fit(model5.sel, print_plot = FALSE)
+
+#dstu$plot
+
+#2.influential points
+#leavage and outliers
+#lea <- ols_plot_resid_lev(model5.sel)
+
+#3.dffits
+#dffit <- ols_plot_dffits(model5.sel)
+
+#4.directly using diagnotic function
+
+diagnose <- ols_plot_diagnostics(model5.sel, print_plot = FALSE)
+res <- diagnose$plot_1
+del.stud <- diagnose$plot_2
+lev.outlier <- diagnose$plot_3
+qqn <- diagnose$plot_4
+fitgraph <- diagnose$plot_5
+cookd <- diagnose$plot_6
+res.his <- diagnose$plot_9
+
+
+#multicollinearity
+vifv <- vif(model5.sel)
+p <- length(model5.sel$coefficients)-1
+mvif <- sum(vifv)/p
+
+```
+
+```{r}
+#Table 1 rearrangement of Hour
+Table1 <- data.frame("Hours" = c("0-5", "6-11", "12-17", "18-23"), "New Level" = c("Midnight", "Morning", "Afternoon", "Night"))
+```
+
+
+```{r}
+#graphs and tables used:
+#table1: rearrangement of Hours
+#hist.sqrt: distribution of y after square root transformation
+#hist.log: distribution of y after logarithmic transformation
+#model5.sel: logarithmic transformation model.
+#res: residual-fitted plot for logarithmic model
+#res.wm: residual-fitted plot for weighted model
+#fitgraph: fitted value vs observed data for model validation
+#qqn: normal Q-Q plot
+#res.his: histogram for residuals
+```
+
+## Model Development
+
+### Final model:
+$log$(Bike rent count+200) = 7.055 + 0.016Temperature - 0.010Humidity - 0.106Rainfall + 0.021Wind.speed - 0.036Solar.Radiation - 0.378Midnight + 0.020Morning + 0.277Night - 0.068Spring + 0.336Summer - 0.197Winter + 0.202No.Holiday  + 0.025Temperature$\times$Spring - 0.023Temperature$\times$Summer + 0.012Temperature$\times$Winter + 0.017Wind.speed$\times$Spring + 0.076Wind.speed$\times$Summer - 0.065Wind.speed$\times$Winter
+
+### 1. Data Selection and Adjustment
+
+  Before we start regression model building, we make some adjustments in the data set. Since our research question is about factors that affect people's demand for bike rentals in Seoul, we are only interested in the data collected when people can rent bikes, so we delete data collected when the renting system is not functioning (Functional Day = No). We got the new data set with 8465 observations. Also, we have identified "Hour" as a categorical variable. It has 24 levels so we decide to reduce them to 4 levels based on the Table below.
+
+```{r}
+Table1
+```
+ 
+  The scatter plot of of Temperature (x-axis) and Bike Rent Count (y-axis) shows that there seems to be a quadratic relation between them, so we also perform centering on Temperature by subtracting mean of Temperature from each variable in order to avoid multicollinearity.
+  We divide the rearranged data into two subsets - one is model building data set with 4232 observations, and the other is validation data set with 4233 observations. Then we start our model building process.
+  
+  
+### 2. Model Building
+
+  The correlation between Tempetarure and Dew Point Temperature is 0.92, so we decide not to include Dew Point Tempetarue. The predictors we choose in our model are: Temperature, Humidity, Windspeed, Visibility, Solar radiation, Rainfall, Snowfall,Hour, Seasons, Holiday. First, we build the main effect model with all the predictors selected, and then perform stepwise regression based on Akaike Information Criterion (AIC). The model is Bike rent count = 1077.14 + 23.72Temperature - 8.13Humidity + 29.75Wind.Speed - 53.48Solar.Radiation - 63.24Rainfall + 45.48Snow.Fall - 270.33Midnight + 28.64Morning + 356.96Night - 48.04Spring  - 6.30Summer - 294.22Winter + 152.44No.Holiday. The adjusted $R^2$ is 0.5176, which is acceptable. We also build and test the model with second order on Temperature. The adjusted $R^2$ is 0.5181, which is close to the $R^2_{adj}$ in the main effect model. 
+  
+  As discussed in the introduction, previous researches has shown that there are interactions between season and numerical predictors about weather. This is also supported by scatter plots factored by season. We add interaction terms between Season and the following numerical variables: Temperature, Windspeed, Rainfall, and Snowfall. We use stepwise regression based on AIC. Here is our model: 
+  
+  Bike rent count = 1120.67 + 23.80 Temperature + 0.384 Temperature$^2$ - 8.33 Humidity + 28.23 Wind.Speed -0.02 Visibility - 59.51 Solar.Radiation - 69.70 Rainfall + 36.31 Snowfall - 289.69 Midnight + 14.48 Morning + 339.74 Night - 56.36 Spring  - 363.56 Summer - 194.68 Winter + 118.70 No.Holiday + 17.56 Temperature$\times$Spring - 45.71 Temperature$\times$Summer + 2.55 Temperature$\times$Winter + 5.67 Wind.speed$\times$Spring + 125.81 Wind.speed$\times$Summer - 77.45 Wind.speed$\times$Winter. $R^2_{ajd}=0.5482$, which is a bit higher than our mean effect model and second order model.
+   
+   However, there are two problems remaining in this model. First, the response variable is a count variable, which means that it is non-negative integer. We have to transform our variable to make the fitted values be non-negative. Second, the distribution of Rent Bike Count is right-skewed. Linear Regression model works better when response variable is normally distributed, so transformation is needed to normalize Rent Bike Count. To address these two problem, we decide to perform square root and logarithmic transformation on the response variable separately. Both these approaches ensure the non-negative property. Rent Bike Count can be 0, so we need to add a constant to it before get the logarithmic value. After trying different constant values we find 200 is quite appropriate as it normalize better than any other constant we test. Here the distribution of Rent Bike Count after transformations:
+  
+```{r, fig.height=2, fig.width=3}
+hist.sqrt
+hist.log
+```
+
+Both transformations make the distribution of Rent Bike Count more close to normal distribution, but at the left tail close to 0 there are a lot of data, which seems to be outliers. We use the same predictors and interaction terms as what we choose to start for our model with interaction, and we again use stepwise regression based on AIC criterion. $R^2_{adj}$ for logarithmic model is 0.5767, and $R^2_{adj}$ for square root model is 0.5525. Based on $R^2_{adj}$ criterion, we choose the logarithmic model since it has larger $R^2_{adj}$. Also, $R^2_{adj}$ for logarithmic model is larger than that of the interaction model without transformation, suggesting that the transformation results in a better regression model.
+
+We also test the weighted regression model with standard deviation case to see if we can remedy the violation of equal variance assumption of the logarithmic model, which can be seen clearly in the residual plot. We regress the absolute value of residuals on the fitted value. After iteration for 3 times we find the weights and estimated coefficients are stable. The weights are $\frac{1}{\hat{s}^2}$, where $\hat{s}$ is the fitted value for the last model in the iteration process. The residual plots for the logarithmic transformation model and the corresponding weighted model is shown below:
+
+```{r, fig.height=2, fig.width=3}
+res
+res.wm
+```
+
+The two residual plots show similar distribution patterns for residuals, indicating that both models violate the equal variance assumption. Also, AIC value for the weighted regression is 5427.212, which is smaller than AIC for logarithmic regression model, which is 5567.926. Based on AIC criterion, we decide to keep the logarithmic model as our final model. Here is our final model: 
+
+$log$(Bike rent count+200) = 7.055 + 0.016Temperature - 0.010Humidity - 0.106Rainfall + 0.021Wind.speed - 0.036Solar.Radiation - 0.378Midnight + 0.020Morning + 0.277Night - 0.068Spring + 0.336Summer - 0.197Winter + 0.202No.Holiday  + 0.025Temperature$\times$Spring - 0.023Temperature$\times$Summer + 0.012Temperature$\times$Winter + 0.017Wind.speed$\times$Spring + 0.076Wind.speed$\times$Summer - 0.065Wind.speed$\times$Winter
+
+Based on the model, we can identify factors related to number of bikes rented. From the sign of coefficient, we know that Rent Bike Count increases as Temperature, windspeed, and solar radiation increase, and decreases as humidity and rainfall increase. They are consistent with the main effect model as well as signs of Pearson correlations. Also, Bike Rent Count is larger in Summer and smaller in Winter, controlling other variables, and larger in the night and smaller at midnight. We are also surprised to find that Bike Rent Count is smaller during holidays. Besides these main effects, the model also shows that there are interactions between Windspeed and Seasons, Temperature and Seasons, suggesting that the effect of Windspeed and Temperature on Bike Rent Count changes from seasons to seasons.
+
+### 3. Model Validation
+
+  We validate our model with Mean Squared Predictor Error (MSPR). $MSPR=\frac{\sum_{i=1}^{n} (Y_i-\hat{Y_i})^2}{n^\star}$, $Y_i$ comes from validation data set, $\hat{Y_i}$ is the fitted value using predictors in the validation data set, and $n^\star$ is the number of observation in the validation data set, which is 4233. We get $MSPR=0.8013$, and Mean Squared Error (MSE) for the model is 0.466. $MSPR-MSE=0.3353$, which is small. It is also shown in the fitted value graph. The red line indicates the predicted value ($\hat{Y_i}$), and the blue dots are the observed data. 
+  
+```{r, fig.height=1.5, fig.width=3}
+fitgraph
+res
+qqn
+res.his
+```
+  
+
+### 4. Model Diagnostics
+
+Regression assumptions are tested. From the residual plot we can see that residuals are not randomly distributed by x-axis, so the equal variance assumption is violated. The Normal Q-Q plot shows that most of the residuals distribute normally as they fit the line, with exceptions at the tail, which also supported by the residual histogram. This probably results from outliers.
+
+We test the potential outliers and influential points using deleted studentized residuals and leverage. The Ourlier and Leverage plot shows that there are a lot of ourliers and influential points, which might explain why assumptions are not met. In the deleted studentized residual plot, residuals except outliers distribute at a more random pattern which might meet the equal variance assumption. However, there is no evidence suggesting that these outliers or influential points are due to recoding mistakes, so we cannot delete them.
+
+```{r, fig.height=2, fig.width=3}
+lev.outlier
+del.stud
+```
+
+  We also test multicollinearity using Variance Inflation Factor (VIF). The mean VIF for our model is 40.17, indicating that there is multicollinearity problem. However, looking into the individual VIF for each term, we find that terms with interaction have high VIF, which result in the high mVIF. Since they come from interactions, and we already eliminate terms with high Pearson correlation before starting model building, multicollinearity is not a serious issue in out model.
+  
+```{r}
+vifv
+```
+
+## Conclusion
+From the final model, we can conclude that temperature, windspeed, and solar radiation are positively associated with bike usage, which means that as they increase, the demand for public bikes also increases. Meanwhile, as humidity and rainfall increase, bike rentals decrease. Also, the hour in a day, season, and whether it is holiday or not are also related to the number of bikes rented. From the interactions, we can also conclude that the effects of wind speed and temperature differ between seasons. Thus, we successfully identify factors related to people's demand for public bike, and our research question is answered.
+
+## Discussion
+Though our model addresses our research question, it has limitations. First, our model does not meet all regression assumptions, so we cannot use it for prediction, estimation, or Analysis of Variance. Instead, only qualitative analysis can be performed with our model. Second, the skewed distribution of response variable is not well addressed. Though we perform logarithmic transformation to make its distribution more close to normal distribution, the new problem that there are lots of data close to 0 is not addressed. So different transformations or other regression methods, such as Poisson regression should be tested to see if they work better. Finally, our model is complex, containing 18 variables (including interaction terms) and transformation of response variable, which makes it hard to interpret the model.
+  
+  The limitation of our model shows possible area for future study. Other statistical methods aiming to find a model for prediction, such as machine learning, can be studied. Accurate prediction of people's demand for public bikes would help with providing a stable supply of bikes through bike reallocation, which lessens people's waiting time and reduces the cost. Also, we are surprised to find that snowfall is not a factor in our final model. This might be a result of the climate of Seoul. The snowy period period in Seoul lasts for about 1.4 months, which might explain why snowfall is not included as a factor in the model (Weather Park). However, considering a city with much more snowfall, such as Toronto where it snows 4.6 months a year on average, snowfall might become significant. This inspires us that a model gives insights to bike rental in Seoul may probably not work well in other cities, due to geography, climates, culture, and so on. When we apply statistics, background is another important factor that we should take into concern.
+
+\newpage
+## Reference
+<div id="refs"></div>
+
+## Appendix
+### Packages and other tools used
+install.packages("psych")\
+install.packages("leaps")\
+install.packages("ggplot2")\
+install.packages("dplyr")\
+install.packages("olsrr")\
+install.packages("tinytex")\
+install.packages("installr")\
+install.packages("bookdown")\
+install.pandoc()\
